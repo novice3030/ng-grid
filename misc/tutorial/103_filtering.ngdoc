@@ -32,6 +32,10 @@ function myCustomSorter(searchTerm, cellValue, row, column) {
 For an example of this, see the "phone" column below for an example of this; the custom filter condition makes sure to strip the phone number of everything
 except digits to compare to the search term.
 
+You can also optionally create a custom filter condition that doesn't require a term to be provided by the user - for example if you're matching 
+to a variable that you're setting within your code.  If you want to do this, you can set `noTerm: true` inside the filter, and the filter will
+run even when no term is provided.  The filter box will, however, still be shown.   
+
 ### Placeholder
 
 Set the `placeholder` property on the `filter` object to add a `placeholder=""` attribute to the input element. This is set for the "email" and "age" columns below.
@@ -58,7 +62,12 @@ for `filters: [{ term: 'xxx' }]`. See the "age" column below for an example.
           // pre-populated search field
           { field: 'gender', filter: { term: 'male' } },
           // no filter input
-          { field: 'company', enableFiltering: false  },
+          { field: 'company', enableFiltering: false, filter: {
+            noTerm: true,
+            condition: function(searchTerm, cellValue) {
+              return cellValue.match(/a/);
+            }
+          }},
           // specifies one of the built-in conditions
           // and a placeholder for the input
           {
@@ -103,7 +112,7 @@ for `filters: [{ term: 'xxx' }]`. See the "age" column below for an example.
       You can use asterisks to fuzz-match, i.e. use "*z*" as your filter to show any row where that column contains a "z".
       <br>
       <br>
-      <strong>Note:</strong> The third column has filtering disabled.
+      <strong>Note:</strong> The third column has the filter input disabled, but actually has a filter set in code that requires every company to have an 'a' in their name.
       <br>
       <br>
       <div id="grid1" ui-grid="gridOptions" class="grid"></div>
@@ -132,18 +141,18 @@ for `filters: [{ term: 'xxx' }]`. See the "age" column below for an example.
         gridTestUtils.expectFilterBoxInColumn( 'grid1', 5, 2 );
       });
 
-      it('third row should be Bishop Carr - will be Terry Clay if filtering broken', function () {
-        gridTestUtils.expectCellValueMatch( 'grid1', 2, 0, 'Bishop Carr' );
+      it('third row should be Hatfield Hudson - will be Terry Clay if filtering broken', function () {
+        gridTestUtils.expectCellValueMatch( 'grid1', 2, 0, 'Hatfield Hudson' );
       });
       
-      it('cancel filter on gender column, should now see Terry Clay in third row', function() {
+      it('cancel filter on gender column, should now see Bishop Carr in third row', function() {
         gridTestUtils.cancelFilterInColumn( 'grid1', 1 );        
-        gridTestUtils.expectCellValueMatch( 'grid1', 2, 0, 'Terry Clay' );
+        gridTestUtils.expectCellValueMatch( 'grid1', 2, 0, 'Bishop Carr' );
       });
 
       it('filter on email column, should automatically do "ends with"', function() {
         gridTestUtils.cancelFilterInColumn( 'grid1', 1 );        
-        gridTestUtils.enterFilterInColumn( 'grid1', 3, 'mixers.com' );        
+        gridTestUtils.enterFilterInColumn( 'grid1', 3, 'digirang.com' );        
         gridTestUtils.expectRowCount( 'grid1', 2 );
       });
     });

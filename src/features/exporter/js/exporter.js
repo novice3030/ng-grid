@@ -1,4 +1,5 @@
 /* global pdfMake */
+/* global console */
 
 (function () {
   'use strict';
@@ -159,7 +160,11 @@
            * @description GridOptions for selection feature, these are available to be  
            * set using the ui-grid {@link ui.grid.class:GridOptions gridOptions}
            */
-
+          /**
+           * @ngdoc object
+           * @name ui.grid.exporter.api:GridOptions.columnDef
+           * @description ColumnDef settings for exporter
+           */
           /**
            * @ngdoc object
            * @name exporterSuppressMenu
@@ -421,7 +426,7 @@
            * a specific date format in the exported content.
            * 
            * The method is called once for each field exported, and provides the grid, the
-           * gridCOl and the GridRow for you to use as context in massaging the data.
+           * gridCol and the GridRow for you to use as context in massaging the data.
            * 
            * @param {Grid} grid provides the grid in case you have need of it
            * @param {GridRow} row the row from which the data comes
@@ -589,6 +594,14 @@
         },
         
         
+        /** 
+         * @ngdoc property
+         * @propertyOf ui.grid.exporter.api:GridOptions.columnDef
+         * @name exporterPdfAlign
+         * @description the alignment you'd like for this specific column when
+         * exported into a pdf.  Can be 'left', 'right', 'center' or any other
+         * valid pdfMake alignment option.
+         */
         /**
          * @ngdoc function
          * @name getData
@@ -624,23 +637,25 @@
               break;
           }
           
-          if ( uiGridExporterConstants.ALL ) {
-            angular.forEach(rows, function( row, index ) {
+          angular.forEach(rows, function( row, index ) {
 
-              var extractedRow = [];
-              angular.forEach(grid.columns, function( gridCol, index ) {
-              if ( (gridCol.visible || colTypes === uiGridExporterConstants.ALL ) && 
-                   gridCol.name !== uiGridSelectionConstants.selectionRowHeaderColName &&
-                   grid.options.exporterSuppressColumns.indexOf( gridCol.name ) === -1 ){
-                  extractedRow.push( grid.options.exporterFieldCallback( grid, row, gridCol, grid.getCellValue( row, gridCol ) ) );
+            var extractedRow = [];
+            angular.forEach(grid.columns, function( gridCol, index ) {
+            if ( (gridCol.visible || colTypes === uiGridExporterConstants.ALL ) && 
+                 gridCol.name !== uiGridSelectionConstants.selectionRowHeaderColName &&
+                 grid.options.exporterSuppressColumns.indexOf( gridCol.name ) === -1 ){
+                var extractedField = { value: grid.options.exporterFieldCallback( grid, row, gridCol, grid.getCellValue( row, gridCol ) ) };
+                if ( gridCol.colDef.exporterPdfAlign ) {
+                  extractedField.alignment = gridCol.colDef.exporterPdfAlign;                 
                 }
-              });
-              
-              data.push(extractedRow);
+                extractedRow.push(extractedField);
+              }
             });
             
-            return data;
-          }
+            data.push(extractedRow);
+          });
+          
+          return data;
         },
 
 
@@ -659,7 +674,7 @@
         formatAsCsv: function (exportColumnHeaders, exportData, separator) {
           var self = this;
           
-          var bareHeaders = exportColumnHeaders.map(function(header){return header.displayName;});
+          var bareHeaders = exportColumnHeaders.map(function(header){return { value: header.displayName };});
           
           var csv = self.formatRowAsCsv(this, separator)(bareHeaders) + '\n';
           
@@ -695,20 +710,20 @@
          * @returns {string} a csv-ified version of the field
          */
         formatFieldAsCsv: function (field) {
-          if (field == null) { // we want to catch anything null-ish, hence just == not ===
+          if (field.value == null) { // we want to catch anything null-ish, hence just == not ===
             return '';
           }
-          if (typeof(field) === 'number') {
-            return field;
+          if (typeof(field.value) === 'number') {
+            return field.value;
           }
-          if (typeof(field) === 'boolean') {
-            return (field ? 'TRUE' : 'FALSE') ;
+          if (typeof(field.value) === 'boolean') {
+            return (field.value ? 'TRUE' : 'FALSE') ;
           }
-          if (typeof(field) === 'string') {
-            return '"' + field.replace(/"/g,'""') + '"';
+          if (typeof(field.value) === 'string') {
+            return '"' + field.value.replace(/"/g,'""') + '"';
           }
 
-          return JSON.stringify(field);        
+          return JSON.stringify(field.value);        
         },
 
         /**
@@ -918,20 +933,24 @@
          * @returns {string} a string-ified version of the field
          */
         formatFieldAsPdfString: function (field) {
-          if (field == null) { // we want to catch anything null-ish, hence just == not ===
-            return '';
+          var returnVal;
+          if (field.value == null) { // we want to catch anything null-ish, hence just == not ===
+            returnVal = '';
+          } else if (typeof(field.value) === 'number') {
+            returnVal = field.value.toString();
+          } else if (typeof(field.value) === 'boolean') {
+            returnVal = (field.value ? 'TRUE' : 'FALSE') ;
+          } else if (typeof(field.value) === 'string') {
+            returnVal = field.value.replace(/"/g,'""');
+          } else {
+            returnVal = JSON.stringify(field.value).replace(/^"/,'').replace(/"$/,'');        
           }
-          if (typeof(field) === 'number') {
-            return field.toString();
+          
+          if (field.alignment && typeof(field.alignment) === 'string' ){
+            returnVal = { text: returnVal, alignment: field.alignment };
           }
-          if (typeof(field) === 'boolean') {
-            return (field ? 'TRUE' : 'FALSE') ;
-          }
-          if (typeof(field) === 'string') {
-            return field.replace(/"/g,'""');
-          }
-
-          return JSON.stringify(field).replace(/^"/,'').replace(/"$/,'');        
+          
+          return returnVal;
         }
       };
 
