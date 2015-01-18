@@ -1,8 +1,8 @@
 (function(){
   'use strict';
 
-  angular.module('ui.grid').directive('uiGridHeaderCell', ['$compile', '$timeout', '$window', '$document', 'gridUtil', 'uiGridConstants', 
-  function ($compile, $timeout, $window, $document, gridUtil, uiGridConstants) {
+  angular.module('ui.grid').directive('uiGridHeaderCell', ['$compile', '$timeout', '$window', '$document', 'gridUtil', 'uiGridConstants', 'ScrollEvent',
+  function ($compile, $timeout, $window, $document, gridUtil, uiGridConstants, ScrollEvent) {
     // Do stuff after mouse has been down this many ms on the header cell
     var mousedownTimeout = 500;
 
@@ -143,8 +143,6 @@
 
               var downEvent = gridUtil.isTouchEnabled() ? 'touchstart' : 'mousedown';
               $contentsElm.on(downEvent, function(event) {
-                gridUtil.logDebug('mouse event', event.type);
-
                 event.stopPropagation();
 
                 if (typeof(event.originalEvent) !== 'undefined' && event.originalEvent !== undefined) {
@@ -165,6 +163,8 @@
                     uiGridCtrl.columnMenuScope.showMenu($scope.col, $elm, event);
                   }
                 });
+
+                uiGridCtrl.fireEvent(uiGridConstants.events.COLUMN_HEADER_CLICK, {event: event, columnName: $scope.col.colDef.name});
               });
         
               var upEvent = gridUtil.isTouchEnabled() ? 'touchend' : 'mouseup';
@@ -205,8 +205,6 @@
             if ($scope.sortable) {
               var clickEvent = gridUtil.isTouchEnabled() ? 'touchend' : 'click';
               $contentsElm.on(clickEvent, function(event) {
-                gridUtil.logDebug('mouse event 2', event.type);
-
                 event.stopPropagation();
     
                 $timeout.cancel(cancelMousedownTimeout);
@@ -215,12 +213,10 @@
                 var mousedownTime = mousedownEndTime - mousedownStartTime;
     
                 if (mousedownTime > mousedownTimeout) {
-                  gridUtil.logDebug('long click');
                   // long click, handled above with mousedown
                 }
                 else {
                   // short click
-                  gridUtil.logDebug('short click');
                   handleClick(event);
                 }
               });
@@ -240,9 +236,10 @@
                     uiGridCtrl.grid.refresh()
                       .then(function () {
                         if (uiGridCtrl.prevScrollArgs && uiGridCtrl.prevScrollArgs.y && uiGridCtrl.prevScrollArgs.y.percentage) {
-                           uiGridCtrl.fireScrollingEvent({ y: { percentage: uiGridCtrl.prevScrollArgs.y.percentage } });
+                          var scrollEvent = new ScrollEvent(uiGridCtrl.grid,null,null,'uiGridHeaderCell.toggleMenu');
+                          scrollEvent.y.percentage = uiGridCtrl.prevScrollArgs.y.percentage;
+                          scrollEvent.fireScrollingEvent();
                         }
-                        // uiGridCtrl.fireEvent('force-vertical-scroll');
                       });
                   }
                 }));  

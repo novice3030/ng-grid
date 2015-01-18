@@ -24,18 +24,44 @@ angular.module('ui.grid')
    *
    * To provide default options for all of the grids within your application, use an angular
    * decorator to modify the GridOptions factory.
-   * <pre>app.config(function($provide){
-   *    $provide.decorator('GridOptions',function($delegate){
-   *      return function(){
-   *        var defaultOptions = new $delegate();
-   *        defaultOptions.excludeProperties = ['id' ,'$$hashKey'];
-   *        return defaultOptions;
-   *      };
-   *    })
-   *  })</pre>
+   * <pre>
+   * app.config(function($provide){
+   *   $provide.decorator('GridOptions',function($delegate){
+   *     var gridOptions;
+   *     gridOptions = angular.copy($delegate);
+   *     gridOptions.initialize = function(options) {
+   *       var initOptions;
+   *       initOptions = $delegate.initialize(options);
+   *       initOptions.enableColumnMenus = false;
+   *       return initOptions;
+   *     };
+   *     return gridOptions;
+   *   });
+   * });
+   * </pre>
    */
   return {
     initialize: function( baseOptions ){
+      /**
+       * @ngdoc function
+       * @name onRegisterApi
+       * @propertyOf ui.grid.class:GridOptions
+       * @description A callback that returns the gridApi once the grid is instantiated, which is 
+       * then used to interact with the grid programatically.
+       * 
+       * Note that the gridApi.core.renderingComplete event is identical to this 
+       * callback, but has the advantage that it can be called from multiple places
+       * if needed
+       * 
+       * @example
+       * <pre>
+       *   $scope.gridOptions.onRegisterApi = function ( gridApi ) {
+       *     $scope.gridApi = gridApi;
+       *     $scope.gridApi.selection.selectAllRows( $scope.gridApi.grid );
+       *   };
+       * </pre>
+       * 
+       */
       baseOptions.onRegisterApi = baseOptions.onRegisterApi || angular.noop();
   
       /**
@@ -162,15 +188,6 @@ angular.module('ui.grid')
        *
        */
       baseOptions.rowHeight = baseOptions.rowHeight || 30;
-      
-      /**
-       * @ngdoc property
-       * @name maxVisibleRowCount
-       * @propertyOf ui.grid.class:GridOptions
-       * @description Defaults to 200
-       *
-       */
-      baseOptions.maxVisibleRowCount = baseOptions.maxVisibleRowCount || 200;
   
       /**
        * @ngdoc integer
@@ -182,22 +199,32 @@ angular.module('ui.grid')
   
       /**
        * @ngdoc property
-       * @name showFooter
+       * @name showGridFooter
        * @propertyOf ui.grid.class:GridOptions
        * @description Whether or not to show the footer, defaults to false
-       *
+       * The footer display Total Rows and Visible Rows (filtered rows)
        */
-      baseOptions.showFooter = baseOptions.showFooter === true;
+      baseOptions.showGridFooter = baseOptions.showGridFooter === true;
 
       /**
        * @ngdoc property
-       * @name footerRowHeight
+       * @name showColumnFooter
        * @propertyOf ui.grid.class:GridOptions
-       * @description The height of the footer in pixels
+       * @description Whether or not to show the column footer, defaults to false
+       * The column footer displays column aggregates
+       */
+      baseOptions.showColumnFooter = baseOptions.showColumnFooter === true;
+
+      /**
+       * @ngdoc property
+       * @name columnFooterHeight
+       * @propertyOf ui.grid.class:GridOptions
+       * @description The height of the footer rows (column footer and grid footer) in pixels
        *
        */
-      baseOptions.footerRowHeight = typeof(baseOptions.footerRowHeight) !== "undefined" ? baseOptions.footerRowHeight : 30;
-  
+      baseOptions.columnFooterHeight = typeof(baseOptions.columnFooterHeight) !== "undefined" ? baseOptions.columnFooterHeight : 30;
+      baseOptions.gridFooterHeight = typeof(baseOptions.gridFooterHeight) !== "undefined" ? baseOptions.gridFooterHeight : 30;
+
       baseOptions.columnWidth = typeof(baseOptions.columnWidth) !== "undefined" ? baseOptions.columnWidth : 50;
 
       /**
@@ -299,7 +326,7 @@ angular.module('ui.grid')
        * @name enableVerticalScrollbar
        * @propertyOf ui.grid.class:GridOptions
        * @description uiGridConstants.scrollbars.ALWAYS by default. This settings controls the vertical scrollbar for the grid.
-       * Supported values: uiGridConstants.scrollbars.ALWAYS, uiGridConstants.scrollbars.NEVER, uiGridConstants.scrollbars.WHEN_NEEDED.
+       * Supported values: uiGridConstants.scrollbars.ALWAYS, uiGridConstants.scrollbars.NEVER
        */
       baseOptions.enableVerticalScrollbar = typeof(baseOptions.enableVerticalScrollbar) !== "undefined" ? baseOptions.enableVerticalScrollbar : uiGridConstants.scrollbars.ALWAYS;
       
@@ -308,7 +335,7 @@ angular.module('ui.grid')
        * @name enableHorizontalScrollbar
        * @propertyOf ui.grid.class:GridOptions
        * @description uiGridConstants.scrollbars.ALWAYS by default. This settings controls the horizontal scrollbar for the grid.
-       * Supported values: uiGridConstants.scrollbars.ALWAYS, uiGridConstants.scrollbars.NEVER, uiGridConstants.scrollbars.WHEN_NEEDED.
+       * Supported values: uiGridConstants.scrollbars.ALWAYS, uiGridConstants.scrollbars.NEVER
        */
       baseOptions.enableHorizontalScrollbar = typeof(baseOptions.enableHorizontalScrollbar) !== "undefined" ? baseOptions.enableHorizontalScrollbar : uiGridConstants.scrollbars.ALWAYS;
   

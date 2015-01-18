@@ -86,7 +86,7 @@ angular.module('ui.grid')
    * @propertyOf ui.grid.class:GridColumn
    * @description Filter on this column.  
    * @example
-   * <pre>{ term: 'text', condition: uiGridConstants.filter.STARTS_WITH, placeholder: 'type to filter...' }</pre>
+   * <pre>{ term: 'text', condition: uiGridConstants.filter.STARTS_WITH, placeholder: 'type to filter...', flags: { caseSensitive: false } }</pre>
    *
    */
     
@@ -105,7 +105,7 @@ angular.module('ui.grid')
     self.grid = grid;
     self.uid = uid;
 
-    self.updateColumnDef(colDef);
+    self.updateColumnDef(colDef, true );
   }
 
 
@@ -224,8 +224,10 @@ angular.module('ui.grid')
    *   {
    *     field: 'field1', filters: [
    *       {
+   *         term: 'aa',
    *         condition: uiGridConstants.filter.STARTS_WITH,
-   *         placeholder: 'starts with...'
+   *         placeholder: 'starts with...',
+   *         flags: { caseSensitive: false }
    *       },
    *       {
    *         condition: uiGridConstants.filter.ENDS_WITH,
@@ -248,7 +250,8 @@ angular.module('ui.grid')
    *   {
    *     term: 'foo', // ngModel for <input>
    *     condition: uiGridConstants.filter.STARTS_WITH,
-   *     placeholder: 'starts with...'
+   *     placeholder: 'starts with...',
+   *     flags: { caseSensitive: false }
    *   },
    *   {
    *     term: 'baz',
@@ -303,8 +306,11 @@ angular.module('ui.grid')
    * @description Moves settings from the columnDef down onto the column,
    * and sets properties as appropriate
    * @param {ColumnDef} colDef the column def to look in for the property value
+   * @param {boolean} isNew whether the column is being newly created, if not
+   * we're updating an existing column, and some items such as the sort shouldn't
+   * be copied down
    */ 
-  GridColumn.prototype.updateColumnDef = function(colDef) {
+  GridColumn.prototype.updateColumnDef = function(colDef, isNew) {
     var self = this;
 
     self.colDef = colDef;
@@ -446,8 +452,6 @@ angular.module('ui.grid')
     self.headerClass = colDef.headerClass;
     //self.cursor = self.sortable ? 'pointer' : 'default';
 
-    self.visible = true;
-
     // Turn on sorting by default
     self.enableSorting = typeof(colDef.enableSorting) !== 'undefined' ? colDef.enableSorting : true;
     self.sortingAlgorithm = colDef.sortingAlgorithm;
@@ -469,8 +473,10 @@ angular.module('ui.grid')
     // self.menuItems = colDef.menuItems;
     self.setPropertyOrDefault(colDef, 'menuItems', []);
 
-    // Use the column definition sort if we were passed it
-    self.setPropertyOrDefault(colDef, 'sort');
+    // Use the column definition sort if we were passed it, but only if this is a newly added column
+    if ( isNew ){
+      self.setPropertyOrDefault(colDef, 'sort');
+    }
 
     // Set up default filters array for when one is not provided.
     //   In other words, this (in column def):
@@ -499,6 +505,7 @@ angular.module('ui.grid')
      * @description Specify a single filter field on this column.
      * 
      * A filter consists of a condition, a term, and a placeholder:
+     * 
      * - condition defines how rows are chosen as matching the filter term. This can be set to
      * one of the constants in uiGridConstants.filter, or you can supply a custom filter function
      * that gets passed the following arguments: [searchTerm, cellValue, row, column].
@@ -507,13 +514,17 @@ angular.module('ui.grid')
      * - placeholder: String that will be set to the `<input>.placeholder` attribute.
      * - noTerm: set this to true if you have defined a custom function in condition, and
      * your custom function doesn't require a term (so it can run even when the term is null)
+     * - flags: only flag currently available is `caseSensitive`, set to false if you don't want
+     * case sensitive matching
      * @example
      * <pre>$scope.gridOptions.columnDefs = [ 
      *   {
      *     field: 'field1',
      *     filter: {
+     *       term: 'xx',
      *       condition: uiGridConstants.filter.STARTS_WITH,
-     *       placeholder: 'starts with...'
+     *       placeholder: 'starts with...',
+     *       flags: { caseSensitive: false }
      *     }
      *   }
      * ]; </pre>
@@ -535,8 +546,13 @@ angular.module('ui.grid')
 
     */
 
-    self.setPropertyOrDefault(colDef, 'filter');
-    self.setPropertyOrDefault(colDef, 'filters', defaultFilters);
+    // Only set filter if this is a newly added column, if we're updating an existing
+    // column then we don't want to put the default filter back if the user may have already
+    // removed it.
+    if ( isNew ) {
+      self.setPropertyOrDefault(colDef, 'filter');
+      self.setPropertyOrDefault(colDef, 'filters', defaultFilters);
+    }
 
     // Remove this column from the grid sorting, include inside build columns so has
     // access to self - all seems a bit dodgy but doesn't work otherwise so have left
@@ -717,7 +733,7 @@ angular.module('ui.grid')
 
   GridColumn.prototype.getCompiledElementFn = function () {
     var self = this;
-    
+
     return self.compiledElementFnDefer.promise;
   };
 
