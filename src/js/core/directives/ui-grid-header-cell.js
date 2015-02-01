@@ -27,11 +27,11 @@
             var renderContainerCtrl = controllers[1];
 
             $scope.grid = uiGridCtrl.grid;
-            $scope.getExternalScopes = uiGridCtrl.getExternalScopes;
 
             $scope.renderContainer = uiGridCtrl.grid.renderContainers[renderContainerCtrl.containerId];
             
-            $elm.addClass($scope.col.getColClass(false));
+            var initColClass = $scope.col.getColClass(false);
+            $elm.addClass(initColClass);
     
             // Hide the menu by default
             $scope.menuShown = false;
@@ -62,20 +62,29 @@
                 classAdded = $scope.col.headerCellClass;
               }
               contents.addClass(classAdded);
+              
+              var rightMostContainer = $scope.grid.renderContainers['right'] ? $scope.grid.renderContainers['right'] : $scope.grid.renderContainers['body'];
+              $scope.isLastCol = ( $scope.col === rightMostContainer.visibleColumnCache[ rightMostContainer.visibleColumnCache.length - 1 ] );
             };
+
+            $scope.$watch('col', function (n, o) {
+              if (n !== o) {
+                // See if the column's internal class has changed
+                var newColClass = $scope.col.getColClass(false);
+                if (newColClass !== initColClass) {
+                  $elm.removeClass(initColClass);
+                  $elm.addClass(newColClass);
+                  initColClass = newColClass;
+                }
+              }
+            });
   
-            if ($scope.col.headerCellClass) {
-              updateClass();
-            }
+            updateClass();
             
             // Register a data change watch that would get triggered whenever someone edits a cell or modifies column defs
-            var watchUid = $scope.grid.registerDataChangeCallback( updateClass, [uiGridConstants.dataChange.COLUMN]);
+            var dataChangeDereg = $scope.grid.registerDataChangeCallback( updateClass, [uiGridConstants.dataChange.COLUMN]);
 
-            var deregisterFunction = function() {
-              $scope.grid.deregisterDataChangeCallback( watchUid ); 
-            };
-
-            $scope.$on( '$destroy', deregisterFunction );            
+            $scope.$on( '$destroy', dataChangeDereg );            
 
 
             // Figure out whether this column is sortable or not

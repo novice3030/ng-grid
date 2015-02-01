@@ -35,6 +35,16 @@ angular.module('ui.grid')
   
     // Get default options
     self.options = GridOptions.initialize( options );
+
+    /**
+     * @ngdoc object
+     * @name appScope
+     * @propertyOf ui.grid.class:Grid
+     * @description reference to the application scope (the parent scope of the ui-grid element).  Assigned in ui-grid controller
+     * <br/>
+     * use gridOptions.appScopeProvider to override the default assignment of $scope.$parent with any reference
+     */
+    self.appScope = self.options.appScopeProvider;
   
     self.headerHeight = self.options.headerRowHeight;
 
@@ -232,7 +242,6 @@ angular.module('ui.grid')
      * might be particularly relevant where you've changed values within the data
      * and you'd like cell classes to be re-evaluated, or changed config within 
      * the columnDef and you'd like headerCellClasses to be re-evaluated.
-     * @param {Grid} grid the grid
      * @param {string} type one of the 
      * uiGridConstants.dataChange values (ALL, ROW, EDIT, COLUMN), which tells
      * us which refreshes to fire.
@@ -348,7 +357,7 @@ angular.module('ui.grid')
    * @param {array} types the types of data change you want to be informed of.  Values from 
    * the uiGridConstants.dataChange values ( ALL, EDIT, ROW, COLUMN, OPTIONS ).  Optional and defaults to
    * ALL 
-   * @returns {string} uid of the callback, can be used to deregister it again
+   * @returns {function} deregister function - a function that can be called to deregister this callback
    */
   Grid.prototype.registerDataChangeCallback = function registerDataChangeCallback(callback, types, _this) {
     var uid = gridUtil.nextUid();
@@ -359,18 +368,12 @@ angular.module('ui.grid')
       gridUtil.logError("Expected types to be an array or null in registerDataChangeCallback, value passed was: " + types );
     }
     this.dataChangeCallbacks[uid] = { callback: callback, types: types, _this:_this };
-    return uid;
-  };
-
-  /**
-   * @ngdoc function
-   * @name deregisterDataChangeCallback
-   * @methodOf ui.grid.class:Grid
-   * @description Delete the callback identified by the id.
-   * @param {string} uid the uid of the function that is to be deregistered
-   */
-  Grid.prototype.deregisterDataChangeCallback = function deregisterDataChangeCallback(uid) {
-    delete this.dataChangeCallbacks[uid];
+    
+    var self = this;
+    var deregisterFunction = function() {
+      delete self.dataChangeCallbacks[uid];
+    };
+    return deregisterFunction;
   };
 
   /**
@@ -405,18 +408,17 @@ angular.module('ui.grid')
    * @description Notifies us that a data change has occurred, used in the public
    * api for users to tell us when they've changed data or some other event that 
    * our watches cannot pick up
-   * @param {Grid} grid the grid
    * @param {string} type the type of event that occurred - one of the 
    * uiGridConstants.dataChange values (ALL, ROW, EDIT, COLUMN)
    */
-  Grid.prototype.notifyDataChange = function notifyDataChange(grid, type) {
+  Grid.prototype.notifyDataChange = function notifyDataChange(type) {
     var constants = uiGridConstants.dataChange;
     if ( type === constants.ALL || 
          type === constants.COLUMN ||
          type === constants.EDIT ||
          type === constants.ROW ||
          type === constants.OPTIONS ){
-      grid.callDataChangeCallbacks( type );
+      this.callDataChangeCallbacks( type );
     } else {
       gridUtil.logError("Notified of a data change, but the type was not recognised, so no action taken, type was: " + type);
     }
@@ -559,9 +561,19 @@ angular.module('ui.grid')
    * @methodOf ui.grid.class:Grid
    * @description creates GridColumn objects from the columnDefinition.  Calls each registered
    * columnBuilder to further process the column
+   * @param {object} options  An object contains options to use when building columns
+   *
+   * * **orderByColumnDefs**: defaults to **false**. When true, `buildColumns` will reorder existing columns according to the order within the column definitions.
+   *
    * @returns {Promise} a promise to load any needed column resources
    */
-  Grid.prototype.buildColumns = function buildColumns() {
+  Grid.prototype.buildColumns = function buildColumns(opts) {
+    var options = {
+      orderByColumnDefs: false
+    };
+
+    angular.extend(options, opts);
+
     // gridUtil.logDebug('buildColumns');
     var self = this;
     var builderPromises = [];
@@ -603,7 +615,35 @@ angular.module('ui.grid')
         builderPromises.push(builder.call(self, colDef, col, self.options));
       });
     });
-    
+
+    /*** Reorder columns if necessary ***/
+    if (!!options.orderByColumnDefs) {
+      // Create a shallow copy of the columns as a cache
+      var columnCache = self.columns.slice(0);
+
+      // We need to allow for the "row headers" when mapping from the column defs array to the columns array
+      //   If we have a row header in columns[0] and don't account for it   we'll overwrite it with the column in columnDefs[0]
+
+      // Go through all the column defs
+      for (i = 0; i < self.options.columnDefs.length; i++) {
+        // If the column at this index has a different name than the column at the same index in the column defs...
+        if (self.columns[i + headerOffset].name !== self.options.columnDefs[i].name) {
+          // Replace the one in the cache with the appropriate column
+          columnCache[i + headerOffset] = self.getColumn(self.options.columnDefs[i].name);
+        }
+        else {
+          // Otherwise just copy over the one from the initial columns
+          columnCache[i + headerOffset] = self.columns[i + headerOffset];
+        }
+      }
+
+      // Empty out the columns array, non-destructively
+      self.columns.length = 0;
+
+      // And splice in the updated, ordered columns from the cache
+      Array.prototype.splice.apply(self.columns, [0, 0].concat(columnCache));
+    }
+
     return $q.all(builderPromises).then(function(){
       if (self.rows.length > 0){
         self.assignTypes();
@@ -697,6 +737,8 @@ angular.module('ui.grid')
    * validates that name or field is present
    */
   Grid.prototype.preprocessColDef = function preprocessColDef(colDef) {
+    var self = this;
+
     if (!colDef.field && !colDef.name) {
       throw new Error('colDef.name or colDef.field property is required');
     }
@@ -704,7 +746,50 @@ angular.module('ui.grid')
     //maintain backwards compatibility with 2.x
     //field was required in 2.x.  now name is required
     if (colDef.name === undefined && colDef.field !== undefined) {
-      colDef.name = colDef.field;
+      // See if the column name already exists:
+      var foundName = self.getColumn(colDef.field);
+
+      // If a column with this name already  exists, we will add an incrementing number to the end of the new column name
+      if (foundName) {
+        // Search through the columns for names in the format: <name><1, 2 ... N>, i.e. 'Age1, Age2, Age3',
+        var nameRE = new RegExp('^' + colDef.field + '(\\d+)$', 'i');
+
+        var foundColumns = self.columns.filter(function (column) {
+          // Test against the displayName, as that's what'll have the incremented number
+          return nameRE.test(column.displayName);
+        })
+        // Sort the found columns by the end-number
+        .sort(function (a, b) {
+          if (a === b) {
+            return 0;
+          }
+          else {
+            var numA = a.match(nameRE)[1];
+            var numB = b.match(nameRE)[1];
+
+            return parseInt(numA, 10) > parseInt(numB, 10) ? 1 : -1;
+          }
+        });
+
+        // Not columns found, so start with number "2"
+        if (foundColumns.length === 0) {
+          colDef.name = colDef.field + '2';
+        }
+        else {
+          // Get the number from the final column
+          var lastNum = foundColumns[foundColumns.length-1].displayName.match(nameRE)[1];
+
+          // Make sure to parse to an int
+          lastNum = parseInt(lastNum, 10);
+
+          // Add 1 to the number from the last column and tack it on to the field to be the name for this new column 
+          colDef.name = colDef.field + (lastNum + 1);
+        }
+      }
+      // ... otherwise just use the field as the column name
+      else {
+        colDef.name = colDef.field;
+      }
     }
 
   };
@@ -1148,7 +1233,12 @@ angular.module('ui.grid')
       var container = self.renderContainers[i];
 
       container.canvasHeightShouldUpdate = true;
-      container.visibleRowCache.length = 0;
+      
+      if ( typeof(container.visibleRowCache) === 'undefined' ){
+        container.visibleRowCache = [];  
+      } else {
+        container.visibleRowCache.length = 0;  
+      }
     }
     
     // rows.forEach(function (row) {

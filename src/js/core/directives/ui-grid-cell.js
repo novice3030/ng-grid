@@ -41,7 +41,8 @@ angular.module('ui.grid').directive('uiGridCell', ['$compile', '$parse', 'gridUt
           }
         },
         post: function($scope, $elm, $attrs, uiGridCtrl) {
-          $elm.addClass($scope.col.getColClass(false));
+          var initColClass = $scope.col.getColClass(false);
+          $elm.addClass(initColClass);
 
           var classAdded;
           var updateClass = function( grid ){
@@ -65,7 +66,7 @@ angular.module('ui.grid').directive('uiGridCell', ['$compile', '$parse', 'gridUt
           }
           
           // Register a data change watch that would get triggered whenever someone edits a cell or modifies column defs
-          var watchUid = $scope.grid.registerDataChangeCallback( updateClass, [uiGridConstants.dataChange.COLUMN, uiGridConstants.dataChange.EDIT]);
+          var dataChangeDereg = $scope.grid.registerDataChangeCallback( updateClass, [uiGridConstants.dataChange.COLUMN, uiGridConstants.dataChange.EDIT]);
           
           // watch the col and row to see if they change - which would indicate that we've scrolled or sorted or otherwise
           // changed the row/col that this cell relates to, and we need to re-evaluate cell classes and maybe other things
@@ -73,6 +74,14 @@ angular.module('ui.grid').directive('uiGridCell', ['$compile', '$parse', 'gridUt
             if ( n !== o ) {
               if ( classAdded || $scope.col.cellClass ){
                 updateClass();
+              }
+
+              // See if the column's internal class has changed
+              var newColClass = $scope.col.getColClass(false);
+              if (newColClass !== initColClass) {
+                $elm.removeClass(initColClass);
+                $elm.addClass(newColClass);
+                initColClass = newColClass;
               }
             }
           };
@@ -83,7 +92,7 @@ angular.module('ui.grid').directive('uiGridCell', ['$compile', '$parse', 'gridUt
           
           
           var deregisterFunction = function() {
-            $scope.grid.deregisterDataChangeCallback( watchUid );
+            dataChangeDereg();
             colWatchDereg();
             rowWatchDereg(); 
           };

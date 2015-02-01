@@ -410,6 +410,8 @@ angular.module('ui.grid')
     
     var newRange = [];
     if (columnCache.length > self.grid.options.columnVirtualizationThreshold && self.getCanvasWidth() > self.getViewportWidth()) {
+      /* Commented the following lines because otherwise the moved column wasn't visible immediately on the new position
+       * in the case of many columns with horizontal scroll, one had to scroll left or right and then return in order to see it
       // Have we hit the threshold going down?
       if (self.prevScrollLeft < scrollLeft && colIndex < self.prevColumnScrollIndex + self.grid.options.horizontalScrollThreshold && colIndex < maxColumnIndex) {
         return;
@@ -417,7 +419,7 @@ angular.module('ui.grid')
       //Have we hit the threshold going up?
       if (self.prevScrollLeft > scrollLeft && colIndex > self.prevColumnScrollIndex - self.grid.options.horizontalScrollThreshold && colIndex < maxColumnIndex) {
         return;
-      }
+      }*/
 
       var rangeStart = Math.max(0, colIndex - self.grid.options.excessColumns);
       var rangeEnd = Math.min(columnCache.length, colIndex + minCols + self.grid.options.excessColumns);
@@ -720,11 +722,21 @@ angular.module('ui.grid')
 
     if (self.name === 'body') {
       styles['overflow-x'] = self.grid.options.enableHorizontalScrollbar === uiGridConstants.scrollbars.NEVER ? 'hidden' : 'scroll';
-      if (self.grid.hasRightContainerColumns()) {
-        styles['overflow-y'] = 'hidden';
+      if (!self.grid.isRTL()) {
+        if (self.grid.hasRightContainerColumns()) {
+          styles['overflow-y'] = 'hidden';
+        }
+        else {
+          styles['overflow-y'] = self.grid.options.enableVerticalScrollbar === uiGridConstants.scrollbars.NEVER ? 'hidden' : 'scroll';
+        }
       }
       else {
-        styles['overflow-y'] = self.grid.options.enableVerticalScrollbar === uiGridConstants.scrollbars.NEVER ? 'hidden' : 'scroll';
+        if (self.grid.hasLeftContainerColumns()) {
+          styles['overflow-y'] = 'hidden';
+        }
+        else {
+          styles['overflow-y'] = self.grid.options.enableVerticalScrollbar === uiGridConstants.scrollbars.NEVER ? 'hidden' : 'scroll';
+        }
       }
     }
     else if (self.name === 'left') {
